@@ -1,8 +1,8 @@
-function(init_git_submodules EXTERNAL_DIR SUBMODULE_PATHS)
+function(init_git_submodules EXTERNAL_DIR)
     set(REPO_DIR "${EXTERNAL_DIR}/../../")
     message(STATUS "Initializing submodules in ${REPO_DIR}")
 
-    foreach(SUBMODULE_PATH ${SUBMODULE_PATHS})
+    foreach(SUBMODULE_PATH ${ARGN})
         execute_process(
             COMMAND git submodule update --init --recursive ${SUBMODULE_PATH}
             WORKING_DIRECTORY ${REPO_DIR}

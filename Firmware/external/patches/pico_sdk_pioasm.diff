@@ -1,0 +1,24 @@
+diff --git a/tools/pioasm/output_format.h b/tools/pioasm/output_format.h
+index 405a5ae..720dfcc 100644
+--- a/tools/pioasm/output_format.h
++++ b/tools/pioasm/output_format.h
+@@ -12,6 +12,7 @@
+ #include <string>
+ #include <memory>
+ 
++#include <cstdint>
+ #include "pio_enums.h"
+ 
+ typedef unsigned int uint;
+diff --git a/tools/pioasm/pio_types.h b/tools/pioasm/pio_types.h
+index 9f9fb0e..9d73013 100644
+--- a/tools/pioasm/pio_types.h
++++ b/tools/pioasm/pio_types.h
+@@ -14,6 +14,7 @@
+ #include <vector>
+ #include <memory>
+ 
++#include <cstdint>
+ #include "location.h"
+ #include "pio_enums.h"
+ 
