@@ -10,4 +10,4 @@ See the [project README](../../README.md) for overview, supported platforms, bui
 | [PICO2W_WII_USB_SETUP.md](PICO2W_WII_USB_SETUP.md) | Pico 2 W / Pico W: USB host wiring (PIO USB), pins, build, troubleshooting for Wii mode. |
 | [GPIO_Output_Pinout_and_Mappings.md](GPIO_Output_Pinout_and_Mappings.md) | GPIO pin-outs and default button/stick mappings for PS1/PS2, Dreamcast, GameCube, and N64 output (and input) modes. |
 | [Dreamcast_Port.md](Dreamcast_Port.md) | Dreamcast (Maple Bus) port status and notes for completing the port from DreamPicoPort (stub only in firmware for now). |
-| [IMPROVEMENTS.md](IMPROVEMENTS.md) | Firmware improvements: Xbox 360 (XInput), PS3 fixes, latency reduction, Xbox OG, DualSense/OG Xbox input, main loop order. |
+| [IMPROVEMENTS.md](IMPROVEMENTS.md) | Firmware improvements and **Future planned** (e.g. Xbox One/Series wireless dongle `045e:02e6` / `02fe`); PS3 fixes, latency, XInput/360, Pico W Bluetooth, Switch 2 / Joy-Con merge, PIO USB unplug detection. |

@@ -96,6 +96,13 @@ public:
 #pragma pack(push, 1)
     struct PadIn
     {
+        /** IMU for PS3 Sixaxis mapping: only DS4/DS5/Switch Pro paths set this (see motion_source). */
+        static constexpr uint8_t MOTION_SRC_NONE = 0;
+        static constexpr uint8_t MOTION_SRC_DS4 = 1;
+        static constexpr uint8_t MOTION_SRC_DS5 = 2;
+        static constexpr uint8_t MOTION_SRC_SWITCH_PRO = 3;
+        static constexpr uint8_t MOTION_SRC_DS5_USB = 4;
+
         uint8_t  dpad;
         uint16_t buttons;
         uint8_t  trigger_l;
@@ -105,7 +112,13 @@ public:
         int16_t  joystick_rx;
         int16_t  joystick_ry;
         uint8_t  analog[10];
-    
+
+        /** Bluepad: int32 accel (DS4 units/g) and gyro (DS4 rate units); USB PS5: raw int16 widened. */
+        int32_t accel[3];
+        int32_t gyro[3];
+        /** If MOTION_SRC_NONE, PS3 mode leaves Sixaxis at neutral; else maps to DS3 report. */
+        uint8_t motion_source;
+
         PadIn()
         {
             std::memset(this, 0, sizeof(PadIn));
@@ -159,9 +172,10 @@ public:
     {
         mutex_enter_blocking(&pad_in_mutex_);
         /* Bluetooth HID runs on Core1; never block there on this mutex (would stall HCI/L2CAP).
-         * Latest BT report is staged lock-free and merged here on Core0. */
-        if (bt_pad_staged_.exchange(false, std::memory_order_acq_rel)) {
-            const PadIn& p = bt_pending_pad_;
+         * Latest BT reports are staged lock-free (2 slots) and merged here on Core0. */
+        while (bt_pad_staged_count_.load(std::memory_order_acquire) > 0) {
+            const unsigned ri = bt_pad_staged_read_.load(std::memory_order_relaxed) % BT_PAD_STAGING_SLOTS;
+            const PadIn& p = bt_pending_pads_[ri];
             if (pad_in_count_ < PAD_IN_QUEUE_SIZE) {
                 pad_in_queue_[pad_in_tail_] = p;
                 pad_in_tail_ = (pad_in_tail_ + 1) % PAD_IN_QUEUE_SIZE;
@@ -171,6 +185,8 @@ public:
                 pad_in_queue_[pad_in_tail_] = p;
                 pad_in_tail_ = (pad_in_tail_ + 1) % PAD_IN_QUEUE_SIZE;
             }
+            bt_pad_staged_read_.store((ri + 1) % BT_PAD_STAGING_SLOTS, std::memory_order_relaxed);
+            bt_pad_staged_count_.fetch_sub(1, std::memory_order_acq_rel);
             new_pad_in_.store(true);
         }
         PadIn pad_in;
@@ -253,8 +269,15 @@ public:
     /** Bluetooth (Core1): never blocks on Core0 — avoids stalling the BT stack in HID callbacks. */
     inline void set_pad_in_from_bluetooth(const PadIn& pad_in)
     {
-        bt_pending_pad_ = pad_in;
-        bt_pad_staged_.store(true, std::memory_order_release);
+        if (bt_pad_staged_count_.load(std::memory_order_acquire) >= BT_PAD_STAGING_SLOTS) {
+            const unsigned drop = bt_pad_staged_read_.load(std::memory_order_relaxed) % BT_PAD_STAGING_SLOTS;
+            bt_pad_staged_read_.store((drop + 1) % BT_PAD_STAGING_SLOTS, std::memory_order_relaxed);
+            bt_pad_staged_count_.fetch_sub(1, std::memory_order_acq_rel);
+        }
+        const unsigned wi = bt_pad_staged_write_.load(std::memory_order_relaxed) % BT_PAD_STAGING_SLOTS;
+        bt_pending_pads_[wi] = pad_in;
+        bt_pad_staged_write_.store((wi + 1) % BT_PAD_STAGING_SLOTS, std::memory_order_release);
+        bt_pad_staged_count_.fetch_add(1, std::memory_order_release);
         new_pad_in_.store(true, std::memory_order_release);
     }
 
@@ -279,7 +302,9 @@ public:
 
     inline void reset_pad_in()
     {
-        bt_pad_staged_.store(false, std::memory_order_relaxed);
+        bt_pad_staged_write_.store(0, std::memory_order_relaxed);
+        bt_pad_staged_read_.store(0, std::memory_order_relaxed);
+        bt_pad_staged_count_.store(0, std::memory_order_relaxed);
         mutex_enter_blocking(&pad_in_mutex_);
         pad_in_head_ = 0;
         pad_in_tail_ = 0;
@@ -399,10 +424,13 @@ public:
     }
 
     static constexpr unsigned PAD_IN_QUEUE_SIZE = 8;
+    static constexpr unsigned BT_PAD_STAGING_SLOTS = 2;
 
 private:
-    PadIn bt_pending_pad_{};
-    std::atomic<bool> bt_pad_staged_{false};
+    PadIn bt_pending_pads_[BT_PAD_STAGING_SLOTS]{};
+    std::atomic<unsigned> bt_pad_staged_write_{0};
+    std::atomic<unsigned> bt_pad_staged_read_{0};
+    std::atomic<unsigned> bt_pad_staged_count_{0};
     mutex_t pad_in_mutex_;
     mutex_t pad_out_mutex_;
     mutex_t chatpad_in_mutex_;

@@ -2,14 +2,103 @@
 
 Improvements and fixes applied to the OGX-Mini RP2040 firmware in this project.
 
-**Version:** From **v1.0.0a3** the version was bumped to **v1.0.0a4** to reflect Wii U controller fixes, Gamecube USB mode, PS3 driver fixes, latency improvements, and Xbox 360 (XInput) support (see below). **v1.0.0.8a+** documents **Pico W / Pico 2 W** work on **DualShock 4 (Classic Bluetooth)** vs **BLE advertising**, **BR inquiry**, and related BT stability (see *Pico W / Pico 2 W — DualShock 4 and Classic Bluetooth* below).
+**Version:** From **v1.0.0a3** the version was bumped to **v1.0.0a4** to reflect Wii U controller fixes, Gamecube USB mode, PS3 driver fixes, latency improvements, and Xbox 360 (XInput) support (see below). **v1.0.0.8a+** documents **Pico W / Pico 2 W** work on **DualShock 4 (Classic Bluetooth)** vs **BLE advertising**, **BR inquiry**, and related BT stability (see *Pico W / Pico 2 W — DualShock 4 and Classic Bluetooth* below). **v1.0.0.10a** adds **Nintendo Switch 2** wireless support (**Pro 2** and **Joy-Con 2**) over **BLE**, **Switch 1 Joy-Con L+R merge**, and **Joy-Con dual-half latency fixes** (see *Nintendo Switch 2 — Bluetooth* and *Joy-Con pair merge — latency* below).
 
-**Next version (e.g. v1.0.0.9a) — documented here for release notes:**
+**Version 1.0.0.9a — documented here for release notes:**
 
 - **Bluetooth (Pico W / Pico 2 W):** ~**1 second** haptic **connection rumble** when a wireless controller reaches **device ready** (so you can feel that pairing completed). **DualShock 4** uses a **longer start delay** before rumble (same idea as the existing PS4 FF grace window) so early force-feedback does not destabilize the link. **File:** `src/Bluepad32/Bluepad32.cpp` — `ogxm_play_connection_rumble()` from `device_ready_cb`.
 - **PS3 mode with the adapter plugged into a Windows PC:** **Host output rumble** forwarded to the Bluetooth pad no longer stays on at idle. Windows DInput often sends a **small non-zero** large-motor byte or a **small-motor byte other than 0/1**; the driver now applies a **deadzone** on the large motor and treats the small motor as on **only when the byte is `1`** (DS3 output semantics). **File:** `src/USBDevice/DeviceDriver/PS3/PS3.cpp` — `new_report_out_` path.
 - **Pico W / Pico 2 W — PIO USB wired unplug:** **Reliable disconnect** when the gamepad cable is removed from the adapter’s PIO USB host port (see [§ Pico W / Pico 2 W — PIO USB wired controller unplug detection](#pico-w--pico-2-w--pio-usb-wired-controller-unplug-detection)). **Files:** `src/OGXMini/Board/PicoW.cpp`, `src/USBHost/HostManager.h`.
 - **DualShock 3 — automatic Bluetooth pairing over USB (boards with Bluetooth):** When a **PS3 / DualShock 3** controller is used **wired** on the USB host, after the normal USB HID init the firmware sends **HID feature report `0xF5`** with the adapter’s **local BD_ADDR** (same as [Bluepad32’s sixaxispairer](https://bluepad32.readthedocs.io/en/latest/pair_ds3/)), so the user can **unplug USB** and connect with **PS**. If `uni_local_bd_addr` is not ready yet, pairing is **deferred** until the first reports where the address is valid. **File:** `src/USBHost/HostDriver/PS3/PS3.cpp` (guarded by `CONFIG_EN_BLUETOOTH`).
+
+---
+
+## Nintendo Switch 2 — Bluetooth (Pico W / Pico 2 W)
+
+**Goal:** Use **Nintendo Switch 2** controllers as **wireless input** on **Pico W** and **Pico 2 W**, in any USB or GPIO output mode (e.g. PS3, XInput, OG Xbox, Switch Pro emulation).
+
+**Confirmed wireless (BLE):**
+
+| Controller | Product ID | Notes |
+|------------|------------|--------|
+| **Switch 2 Pro** | **0x2069** | Full gamepad; same 63-byte composed report path as Joy-Con 2. |
+| **Joy-Con 2 (L)** | **0x2067** | Solo or **merged pair** with Joy-Con R → one player. |
+| **Joy-Con 2 (R)** | **0x2066** | Solo or merged with Joy-Con L (pair L first, then SYNC R). |
+
+**Not yet confirmed:** **NSO GameCube** (**0x2073**) — PID registered; GC-style report path exists in the parser.
+
+Switch 2 controllers use a **proprietary BLE GATT protocol**, not standard HID-over-GATT. They advertise as **“Nintendo Switch”** with manufacturer data and require a **custom pairing / SYNC** command sequence before encrypted input notifications arrive.
+
+**References (protocol reverse engineering — thank you to these projects):**
+
+| Project | Contribution |
+|---------|----------------|
+| **[Nadeflore/switch2-controllers](https://github.com/Nadeflore/switch2-controllers)** | Foundational Switch 2 **BLE discovery, pairing, and GATT** flow for Joy-Con 2 / Pro 2 on PC. |
+| **[TommyWabg/switch2-controllers-windows10-gyro](https://github.com/TommyWabg/switch2-controllers-windows10-gyro)** | Extended fork with **63-byte composed input report** layout (button dword @ offset 4, sticks @ 10/13, IMU @ 48), **init / feature / rumble** command formats, and **Pro Controller** rumble packet structure. |
+| **[BlueRetro #1249](https://github.com/darthcloud/BlueRetro/issues/1249)** (darthcloud) | Early community notes on **63-byte reports**, **notify handle 0x000A**, and Switch 2 **button bitfield** layout. |
+| **`Switch2ProHost.cpp`** (this repo) | **Wired USB** bit layout for PID **0x2069** — cross-check for face / d-pad / **Home → SYS** mapping on PS3-oriented builds. |
+
+### Changes
+
+1. **New Bluepad32 parser** — `Firmware/external/bluepad32/.../parser/uni_hid_parser_switch2.c` (+ `.h`): GATT service discovery, **SYNC / pair** subcommands, calibration read, **input notify** on handle **0x0A**, **command** write/notify, **Pro** and **Joy-Con** vibration characteristics (keepalive rumble), connection parameter update (~7.5 ms), and teardown on disconnect. Supports PIDs **0x2069** (Pro), **0x2066** (Joy-Con R), **0x2067** (Joy-Con L).
+
+2. **LE advertisement hook** — `uni_bt_le.c` detects Switch 2 manufacturer data and routes connect to the Switch 2 parser instead of generic BLE HID.
+
+3. **Input decode** — **63-byte** notify: little-endian **button dword** at offset **4** (masks verified on hardware). Face, d-pad, ±, L3/R3, shoulders, ZL/ZR digital, **Home** (`0x100000` / `0x1000`), and **Capture** mapped into Bluepad32 `uni_gamepad_t`. Sticks calibrated from factory data; gyro/accel forwarded when present.
+
+4. **Home → PS / Guide** — Home sets `MISC_BUTTON_SYSTEM` → `MAP_BUTTON_SYS` in `Bluepad32.cpp` → PS3 / XInput / etc. **Home latch** (~24 frames) in the parser so Nintendo’s often **single-frame** Home pulse is not dropped by the lock-free Core1→Core0 pad staging buffer before the PS3 **8-frame SYS latch** runs.
+
+5. **Link stability** — Periodic **rumble keepalive** (zero-amplitude vibration write every ~5–8 ms) prevents **HCI disconnect (0x08)** when the pad would otherwise go idle without output reports.
+
+6. **OGX integration** — `Bluepad32.cpp`: rumble routing, motion source `MOTION_SRC_SWITCH_PRO`, stall-watchdog exemption, keepalive timer for Switch 2 BLE devices.
+
+7. **Joy-Con 2 pair merge** — When **Left** and **Right** Joy-Con 2 are both connected, input is **merged into one gamepad** (player slot = lower BT index, typically player 1). Left half: left stick, L/ZL, d-pad; right half: face buttons, right stick, R/ZR. Solo Joy-Con keeps BLE scan on for the partner; disconnecting one half unpairs and the other continues solo.
+
+8. **Switch 1 Joy-Con pair merge** — Original **Joy-Con (L/R)** over **Classic Bluetooth** (PIDs **0x2006** / **0x2007**) use the same **L first, then R** flow in `uni_hid_parser_switch.c`. When paired, each half uses **Pro-style** stick/button layout before merge; solo Joy-Con keeps **BR/EDR inquiry** running for the partner. Requires **two** Bluepad32 device slots (`CONFIG_BLUEPAD32_MAX_DEVICES=2`) even on single-player USB builds.
+
+9. **Joy-Con pair latency (Switch 1 + Switch 2)** — When **both** halves send input at once, merged pairs no longer feel laggy or drop button edges. See [§ Joy-Con pair merge — latency when both halves are active](#joy-con-pair-merge--latency-when-both-halves-are-active) below.
+
+**Pairing (user):** Put the **Pro 2** or **Joy-Con 2** in pairing mode (SYNC / hold the pairing button per Nintendo instructions). The adapter scans and connects; **do not** pair the pad in Windows/macOS Bluetooth settings first.
+
+**Joy-Con 2 as one controller (like Switch):** Pair the **Left** Joy-Con first, then put the **Right** Joy-Con in SYNC mode while the left is still connected. The firmware **merges** both halves into **one player** (gamepad slot **1** / the lower BT slot index). Left stick, d-pad, L/ZL map from the left Joy-Con; face buttons, right stick, R/ZR from the right. If only one Joy-Con is connected, it works solo and BLE scan stays on so you can add the partner.
+
+**Switch 1 Joy-Con (same user flow):** Pair **Left** first (hold **SYNC** on the rail), then **Right** while left stays connected. Uses Classic BT inquiry instead of BLE scan. Solo horizontal Joy-Con layout applies until the pair is formed; merged input uses a full gamepad layout. **Wired USB** for Switch 2–family pads remains in **Switch2ProHost** / **SwitchProHost** — see [Wired_Controllers.md](Wired_Controllers.md).
+
+**Files:** `uni_hid_parser_switch2.c`, `uni_hid_parser_switch2.h`, `uni_hid_parser_switch.c`, `uni_hid_parser_switch.h`, `uni_bt_le.c`, `uni_bt_bredr.c`, `uni_hid_device.c`, `uni_controller_list.h`, `src/Bluepad32/Bluepad32.cpp`.
+
+---
+
+## Joy-Con pair merge — latency when both halves are active
+
+**Problem:** With **Left + Right** Joy-Cons merged into one player (Switch 1 Classic BT or Switch 2 BLE), pressing buttons on **both** halves at the same time could feel **laggy** or miss rapid edges. Switch 1 Pro / solo Joy-Con and Switch 2 Pro were unaffected.
+
+**Root causes:**
+
+1. **Stale merge** — Each half’s report was merged using the partner’s last parsed `controller.gamepad`, which could be **one frame behind** when L and R updated in the same interval.
+2. **Dropped Core1→Core0 reports** — Bluetooth HID runs on **Core1**; a **single** lock-free staging slot could be **overwritten** before Core0 drained it when L and R fired back-to-back.
+3. **Switch 2 radio / BT-thread load** — Dual BLE links plus **keepalive vibration writes** and **verbose raw-input logging** on button changes competed with inbound notifications on the shared CYW43439 radio.
+
+### Changes
+
+#### Shared (Switch 1 + Switch 2 parsers + Gamepad)
+
+1. **Per-half cached state** — Each Joy-Con slot stores its latest parsed `uni_gamepad_t` in a half cache (`sw1_joycon_half_gp` / `sw2_joycon_half_gp`). On any report from either half, merge reads **both caches** and emits **once** through the **primary** (left) device slot only.
+2. **2-slot Bluetooth pad staging** — `Gamepad::set_pad_in_from_bluetooth()` uses a **two-entry ring** instead of one overwrite buffer, so rapid L-then-R reports are less likely to lose a frame before Core0 merges them into the main pad-in queue. **File:** `src/Gamepad/Gamepad.h`.
+
+#### Switch 1 (Classic Bluetooth)
+
+3. **IMU off when paired** — After L+R pair is established, both halves receive **SUBCMD_ENABLE_IMU (0)** so 0x30 reports carry less motion traffic and parsing skips IMU while paired. **File:** `uni_hid_parser_switch.c` — `switch_set_imu_enabled()`, `switch_establish_joycon_pair()`.
+
+#### Switch 2 (BLE)
+
+4. **Deferred merge emit** — When paired, L/R input notifications **update the half cache immediately** but schedule a **0 ms** run-loop timer to merge and call `uni_hid_device_process_controller()` **once** per BT tick if both halves updated in the same loop iteration.
+5. **Keepalive traffic reduced** — Removed **keepalive on every input notification** (timer already maintains the link). **Secondary** Joy-Con **stops** its 5 ms keepalive timer when paired; **primary** alternates idle rumble between L and R every **10 ms** (one GATT write per tick). Keepalive is **deferred briefly** while either half is actively reporting. **Bluepad32** skips redundant feedback-path keepalive when the parser timer is already running.
+6. **Joy-Con–specific parse** — Joy-Con 2 L/R parse **only their physical stick** (not both sticks + IMU on every 63-byte packet). Raw hex input logging on button change is **disabled** by default (`SW2_DEBUG_RAW_INPUT=0`) so UART work does not stall the BT thread during gameplay.
+7. **Connection interval** — **7.5 ms** connection parameter update is requested on **both** halves when the pair is formed.
+
+**Files:** `uni_hid_parser_switch.c`, `uni_hid_parser_switch2.c`, `uni_hid_parser_switch2.h`, `src/Gamepad/Gamepad.h`, `src/Bluepad32/Bluepad32.cpp`.
+
+**User impact:** Paired Joy-Cons (Switch 1 or Switch 2) should feel as responsive when using **both** halves simultaneously as when using one half alone. Pairing flow unchanged: **Left first**, then **Right** (SYNC on the partner while left stays connected).
 
 ---
 
@@ -90,7 +179,7 @@ Descriptors and XSM3 flow are aligned with [joypad-os](https://github.com/joypad
    - **Many PS3s cut power to the USB ports** when shut down, so the adapter and controller disconnect and wake is not possible. If your controller stays powered (e.g. charging LED) when the PS3 is off, that model may keep USB in standby and wake may work. Same disclaimer as 360: no wake from cold start; use the console power button first if needed.
    - **Recovery Mode:** Even when wake from standby is not possible (e.g. console cuts USB when off), the adapter is **confirmed working in PS3 Recovery Mode** — you can use it to navigate and select options in Recovery.
 
-7. **Host rumble → Bluetooth pad (PS3 mode on PC)** *(next version)*  
+7. **Host rumble → Bluetooth pad (PS3 mode on PC)** *(v1.0.0.9a)*  
    When the adapter is in **PS3 output mode** and connected to a **Windows** host, the OS still sends **HID output** (rumble) to the device. That output is forwarded to the **Bluetooth** gamepad as `PadOut` rumble. Some Windows stacks leave **noise** in the report (small large-motor values, or non‑`0`/`1` small-motor bytes). Forwarding that blindly caused **constant vibration** on the wireless controller at idle.  
    **Fix:** Ignore large-motor values **below a small threshold** (deadzone), and treat the **small motor as on only when the host byte is `1`** (not “any non-zero”).  
    **File:** `PS3.cpp` — block that runs when `new_report_out_` is set after `set_report_cb` parses the DS3 output report.
@@ -292,11 +381,11 @@ For **`CONTROLLER_TYPE_PS4Controller`**, **rumble output** is **delayed ~6 secon
 ### 5. Related Pico W Bluetooth improvements (see also Summary table)
 
 - **Core0 `sleep_ms(1)`** in the main loop so Core1 (BT stack) gets CPU time ([Team-Resurgent/OGX-Mini](https://github.com/Team-Resurgent/OGX-Mini) pattern).
-- **Lock-free Bluetooth input path** (`set_pad_in_from_bluetooth`) so HID callbacks never block on Core0’s mutex.
+- **Lock-free Bluetooth input path** (`set_pad_in_from_bluetooth`) so HID callbacks never block on Core0’s mutex. **Joy-Con pairs:** **2-slot** staging ring so back-to-back L/R reports are not overwritten before Core0 drains (see [§ Joy-Con pair merge — latency](#joy-con-pair-merge--latency-when-both-halves-are-active)).
 - **Reconnect:** last device disconnect calls **`uni_bt_enable_new_connections_unsafe(true)`** so pairing can resume without power-cycling.
 - **8 s input-stall disconnect** (non-virtual, non-BLE-Xbox) to clear zombie links; **BLE Xbox** uses keepalive instead of stall disconnect.
 
-### 6. Connection rumble when the wireless controller is ready *(next version)*
+### 6. Connection rumble when the wireless controller is ready *(v1.0.0.9a)*
 
 When Bluepad32 reports **`device_ready`** for a non-virtual gamepad, the firmware plays about **one second** of **dual-motor rumble** (via `play_dual_rumble` when the controller supports it) so you can **feel** that the Bluetooth link is up. **DualShock 4** uses a **~1.2 s delay** before starting that rumble so it does not overlap the fragile post-connect window (aligned with the existing PS4 rumble grace logic). Other controller types use a shorter default delay.
 
@@ -325,18 +414,82 @@ The script checks for required tools (git, python3, cmake, ninja, arm-none-eabi-
 
 ---
 
+## Future planned
+
+Work that is **not implemented** in current firmware but has been researched. These items are **not** a matter of adding a VID/PID to a table — they need new host drivers and/or radio stacks.
+
+### Xbox Wireless Adapter for Windows (`045e:02e6`, `045e:02fe`)
+
+**Devices:**
+
+| VID:PID | Model | USB product string | Status |
+|---------|-------|-------------------|--------|
+| **`045e:02e6`** | 1713 | Xbox Wireless Adapter for Windows (older) | **Not supported** |
+| **`045e:02fe`** | 1790 | **XBOX ACC** (newer) | **Not supported** |
+
+These are **USB dongles** that receive **Xbox Wireless** (proprietary 2.4 GHz) from Xbox One and Xbox Series controllers. They are **not** gamepads and do **not** enumerate as XInput devices.
+
+**Do not confuse with the Xbox 360 PC receiver** — that **is supported** today:
+
+| VID:PID | Device | Why it works |
+|---------|--------|--------------|
+| **`045e:0719`** (typical) | Xbox 360 wireless **PC receiver** | Presents a standard XInput-style USB interface (`bInterfaceSubClass=0x5D`, `bInterfaceProtocol=0x81`). Handled by `tuh_xinput` / `Xbox360WHost`. |
+
+The One/Series dongles use a **completely different USB shape** (vendor bulk, not XInput interrupt).
+
+#### What the dongle looks like on USB
+
+From hardware dumps (e.g. [ControllersInfo adapter descriptor](https://github.com/DJm00n/ControllersInfo/blob/master/xboxone/DescriptorDump_Adapter%20(Xbox%20Wireless%20Adapter%20for%20Windows).txt)):
+
+- **Device class:** vendor-specific (`0xFF/0xFF/0xFF`), product name **"XBOX ACC"**
+- **Endpoints:** **bulk** IN/OUT (512-byte packets on USB 2.0), not the interrupt endpoints used by **wired** Xbox One pads
+- **Inside the stick:** a **Mediatek MT76** Wi‑Fi chipset that must run **dongle firmware** before it can talk to controllers
+
+OGX-Mini’s existing **wired Xbox One GIP** path (`tuh_xinput`, subclass `0x47` / protocol `0xD0`, `XboxOneHost`) parses GIP **after** the controller is already connected over USB. The wireless adapter never exposes that interface — the host must drive the **dongle radio** first.
+
+#### Why this is not a simple port
+
+1. **Firmware upload** — Linux [xone](https://github.com/medusalix/xone) / [xow](https://github.com/medusalix/xow) load **`xow_dongle.bin`** / variant blobs (e.g. **`xone_dongle_02fe.bin`**) into the MT76 chip over USB before the device is useful. That blob must be shipped in flash and the load sequence reimplemented on RP2040.
+
+2. **Wireless stack, not HID** — The driver brings up **MT76** (channels, pairing scan, client join/leave, optional encryption), wraps **GIP** payloads in **802.11-style data frames**, and sends them on bulk OUT queues. Inbound bulk IN carries WLAN frames that must be parsed to extract GIP input. This is the bulk of [xone `transport/dongle.c`](https://github.com/medusalix/xone/blob/master/transport/dongle.c) + [`transport/mt76.c`](https://github.com/medusalix/xone/blob/master/transport/mt76.c) — thousands of lines, not a report-descriptor tweak.
+
+3. **Resource cost** — xone uses many bulk URBs, WLAN buffers up to tens of KB per packet, and ongoing radio work. RP2040 flash/RAM and Core1 USB host timing are tight compared to a PC kernel driver.
+
+4. **Pairing model** — Controllers must be **paired to the dongle** (Sync on the pad while the dongle is in pairing mode). Pads previously used over **USB** or **Bluetooth** will not auto-attach until re-paired to the dongle — same as on Windows with xone.
+
+5. **Reuse is partial only** — Once a wireless client is connected and GIP input arrives, decoding could **reuse** existing GIP constants and mapping from `Descriptors/XboxOne.h` / `XboxOneHost.cpp`. Everything **before** that (USB dongle + radio + framing) is new work — comparable in scope to adding Switch 2 bulk bring-up, but **larger** because of firmware + Wi‑Fi.
+
+**Rough implementation phases (if pursued):**
+
+1. New TinyUSB **vendor bulk** class driver; claim `045e:02e6` / `045e:02fe`; embed firmware; port MT76 init from xone.  
+2. Bulk I/O loops, pairing, client add/remove (mirror `Xbox360W` connect callbacks in `HostManager`).  
+3. Bridge decoded GIP `0x20` / `0x07` reports into `XboxOneHost` (or a shared GIP parser).  
+4. Rumble/LED over wireless GIP OUT path.
+
+**Practical alternatives today:**
+
+- **Xbox 360 wireless receiver** + 360 pads — already supported (`Xbox360WHost`).  
+- **Xbox One / Series controller** — **Bluetooth** on Pico W / Pico 2 W (Bluepad32), or **wired USB** (`XboxOneHost`).  
+
+**References:** [medusalix/xone](https://github.com/medusalix/xone), [medusalix/xow](https://github.com/medusalix/xow), [SDL discussion of 02fe vs XInput PID](https://github.com/libsdl-org/SDL/pull/8683), [ControllersInfo dongle descriptor dump](https://github.com/DJm00n/ControllersInfo/tree/master/xboxone).
+
+**Files that would be touched (when implemented):** new `tuh_xbox_dongle` (or similar) under `USBHost/HostDriver/XInput/`, `HostManager.h`, `tuh_callbacks.cpp`, `tusb_config.h`; possible shared GIP layer with `XboxOne.cpp`.
+
+---
+
 ## Summary
 
 | Area | Improvement |
 |------|-------------|
-| **XInput (360)** | XSM3 authentication and descriptors aligned with joypad-os; adapter works on Xbox 360 with BT controllers (PS5, Xbox One). 8BitDo wired fix: LED keepalive for VID 0x2DC8 / PID 0x3016 or 0x3106. Report built every loop, send when endpoint ready — same minimal-latency pattern as Switch/PS3. |
-| **PS3** | Stuck inputs and delays addressed via L2/R2 axes; DS3-accurate sticks (0–255, center 0x80, ~1.5% deadzone); D-pad and face button mapping; Home (PS) button with 8-frame latch for BT controllers. **Next version:** PC host rumble deadzone + strict small-motor `0`/`1` so idle rumble does not stick on the BT pad. |
+| **XInput (360)** | XSM3 authentication and descriptors aligned with joypad-os; adapter works on Xbox 360 with BT controllers (PS5, Xbox One). **360 wireless PC receiver** supported (`Xbox360WHost`). **Xbox One/Series wireless dongle (`045e:02e6` / `02fe`)** — see [Future planned](#future-planned). 8BitDo wired fix: LED keepalive for VID 0x2DC8 / PID 0x3016 or 0x3106. Report built every loop, send when endpoint ready — same minimal-latency pattern as Switch/PS3. |
+| **PS3** | Stuck inputs and delays addressed via L2/R2 axes; DS3-accurate sticks (0–255, center 0x80, ~1.5% deadzone); D-pad and face button mapping; Home (PS) button with 8-frame latch for BT controllers. **v1.0.0.9a:** PC host rumble deadzone + strict small-motor `0`/`1` so idle rumble does not stick on the BT pad. |
 | **PS2 (GPIO)** | Home only = IGR (L1+L2+R1+R2+Start+Select); Home+Start = shutdown (L1+L2+R1+R2+L3+R3). OPL and protocol stability (first response byte = mode byte). |
 | **OG Xbox** | Guide only = IGR. Shutdown = LT+RT+Back+White via **Guide+Start** or **Guide+View (Back)**; Xbox BT often omits Start while Guide is held. Shutdown report strips Start so the chord matches BIOS/softmod expectations. |
 | **Switch Pro** | Analog stick sensitivity gain (default 1.2×) for more responsive sticks; configurable in `Switch.cpp`. |
+| **Switch 2** | **Pro 2** (wired **0x2069**): **Switch2ProHost**. **Pro 2 + Joy-Con 2 L/R** (BLE): **uni_hid_parser_switch2** — GATT pairing, 63-byte input, rumble keepalive, Home → SYS latch, **L+R pair merge**, **dual-half latency fixes**. See [§ Nintendo Switch 2 — Bluetooth](#nintendo-switch-2--bluetooth-pico-w--pico-2-w) and [§ Joy-Con pair latency](#joy-con-pair-merge--latency-when-both-halves-are-active). |
 | **Boards** | RP2350_ZERO, RP2040_XIAO, RP2354 supported (Standard/PIO-USB host path). |
 | **Latency** | Main loop delay default **0 µs**; `tud_task()` before `process()` so reports send every loop when ready; XInput/Switch/PS3 send latest state when USB ready (no `new_pad_in()` gate). Switch Pro and PS3 always build report every loop so host poll (`get_report`) and IN push both see current state — only remaining delay is BT radio when wireless. |
 | **Build** | Interactive scripts `scripts/build.sh` (Linux/macOS) and `scripts/build.ps1` (Windows) for board selection, fixed/default mode, and Release/Debug; output in `scripts/build/`. See [README](../../../README.md) Build section. |
-| **Bluetooth (Pico W)** | **DS4 / Classic ACL:** BLE advertising **paused** while Classic pad connected; **BR inquiry stopped** during ACL; **no DS4 virtual mouse**; **6 s PS4 rumble** grace. **Xbox Series (BLE):** no stall disconnect when idle; keepalive 12 s; stale-slot delete on reconnect. **General:** `sleep_ms(1)` main loop; lock-free BT pad-in; re-enable scan on last disconnect. **Next version:** ~**1 s connection rumble** at `device_ready` (DS4 delayed start). |
+| **Bluetooth (Pico W)** | **DS4 / Classic ACL:** BLE advertising **paused** while Classic pad connected; **BR inquiry stopped** during ACL; **no DS4 virtual mouse**; **6 s PS4 rumble** grace. **Xbox Series (BLE):** no stall disconnect when idle; keepalive 12 s; stale-slot delete on reconnect. **Switch 2 (BLE):** Pro 2 + Joy-Con 2 L/R — custom GATT parser, rumble keepalive, Home latch, **L+R merge**, **dual-half latency fixes**. **Switch 1 Joy-Con (Classic BT):** L+R merge, IMU off when paired, same latency path as SW2. **General:** `sleep_ms(1)` main loop; lock-free BT pad-in (**2-slot** staging for Joy-Con pairs); re-enable scan on last disconnect. **v1.0.0.9a:** ~**1 s connection rumble** at `device_ready` (DS4 delayed start). |
 | **PIO USB host (Pico W)** | **Wired unplug:** Debounced combo of **HCD connect**, **`tuh_mounted` over all device addresses**, and **no `process_report` / setup activity** (~**3 s**) so disconnect registers when D+/D− line state is wrong under PIO; **`tuh_deinit`** + restore GPIO line IRQs + BT release. See [§ Pico W — PIO USB wired controller unplug detection](#pico-w--pico-2-w--pio-usb-wired-controller-unplug-detection). |
 | **DS3 + Bluetooth** | **USB auto-pair:** After PS3 wired init, **feature `0xF5`** programs the **DS3** with the adapter’s **BD_ADDR** (`CONFIG_EN_BLUETOOTH`); deferred if BT address not ready. See [§ DualShock 3 — automatic USB programming for Bluetooth pairing](#dualshock-3--automatic-usb-programming-for-bluetooth-pairing). |

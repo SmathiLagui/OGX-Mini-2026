@@ -12,7 +12,7 @@ Firmware for the RP2040, capable of emulating gamepads for several game consoles
 
 [**Visit the web app here**](https://megacadedev.github.io/OGX-Mini-2026-WebApp/) to change your mappings and deadzone settings. To pair the OGX-Mini with the web app via USB, plug your controller in, then connect it to your PC, hold **Start + Left Bumper + Right Bumper** to enter web app mode. Click "Connect via USB" in the web app and select the OGX-Mini. You can also pair via Bluetooth, no extra steps are needed in that case. 
 
-[**Join the discord here!**](https://discord.gg/guaBh9JZQ)
+[**Join the discord here!**](https://discord.gg/HhZuSaSc4)
 
 ## Supported platforms
 - Original Xbox
@@ -83,7 +83,7 @@ See [**Wired Controllers**](Firmware/RP2040/docs/Wired_Controllers.md) for a ful
 - Dualshock 4 (PS4)
 - Dualsense (PS5)
 - Nintendo Switch Pro
-- Nintendo Switch wired (including **Switch 2 Pro** PID `0x2069` when **wired**—see [Wired Controllers](Firmware/RP2040/docs/Wired_Controllers.md))
+- Nintendo Switch wired (including **Switch 2** family — **Pro 2** `0x2069`, **Joy-Con 2** `0x2066`/`0x2067`; **wired USB** or **Bluetooth LE** on Pico W / Pico 2 W; see [Wired Controllers](Firmware/RP2040/docs/Wired_Controllers.md) and [IMPROVEMENTS — Switch 2 BLE](Firmware/RP2040/docs/IMPROVEMENTS.md#nintendo-switch-2--bluetooth-pico-w--pico-2-w))
 - Nintendo 64 Generic USB
 - Playstation Classic
 - Generic DInput
@@ -110,11 +110,14 @@ Note: There are some third party controllers that can change their VID/PID, thes
 
 Full technical detail: **[Firmware/RP2040/docs/IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md)** → *Pico W / Pico 2 W — DualShock 4 and Classic Bluetooth stability*.
 
+**Nintendo Switch 2 (Pico W / Pico 2 W):** **Switch 2 Pro** (PID **0x2069**) and **Joy-Con 2** Left (**0x2067**) / Right (**0x2066**) use a **custom BLE GATT protocol** (not standard gamepad HID). Put the controller in **pairing / SYNC** mode; the adapter discovers and connects automatically — **do not** pair it in your PC or phone Bluetooth settings first. **Joy-Con 2:** pair **Left** first, then **Right** while left stays connected — both merge into **player 1** like on a Switch. **Home** maps to **PS / Guide (SYS)** on PS3, XInput, OG Xbox, etc. Protocol credits: [Nadeflore/switch2-controllers](https://github.com/Nadeflore/switch2-controllers), [TommyWabg/switch2-controllers-windows10-gyro](https://github.com/TommyWabg/switch2-controllers-windows10-gyro), and [BlueRetro #1249](https://github.com/darthcloud/BlueRetro/issues/1249). Details: [IMPROVEMENTS — Switch 2 Bluetooth](Firmware/RP2040/docs/IMPROVEMENTS.md#nintendo-switch-2--bluetooth-pico-w--pico-2-w).
+
 - Xbox Series, One, and Elite 2
 - Dualshock 3
 - Dualshock 4
 - Dualsense
 - Switch Pro
+- **Switch 2 Pro** and **Joy-Con 2 (L/R)** (BLE on Pico W / Pico 2 W; wired USB also supported)
 - Steam
 - Stadia
 - Wii U Pro
@@ -129,7 +132,7 @@ Please visit [**this page**](https://bluepad32.readthedocs.io/en/latest/supporte
 
 # Features new to this fork
 
-Version history and release notes are in **[CHANGELOG.md](CHANGELOG.md)**. For detailed firmware improvements — **PS3**, **XInput / XSM3**, **OG Xbox**, **PS2/OPL**, **latency**, **Pico W Bluetooth (DS4 Classic BT, BLE coexistence, Xbox Series BLE)**, **Pico W / Pico 2 W PIO USB wired unplug detection**, etc. — see **[Firmware/RP2040/docs/IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md)**.
+Version history and release notes are in **[CHANGELOG.md](CHANGELOG.md)**. For detailed firmware improvements — **PS3**, **XInput / XSM3**, **OG Xbox**, **PS2/OPL**, **latency**, **Pico W Bluetooth (DS4 Classic BT, BLE coexistence, Xbox Series BLE, Switch 2 Pro + Joy-Con 2 BLE)**, **Pico W / Pico 2 W PIO USB wired unplug detection**, etc. — see **[Firmware/RP2040/docs/IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md)**.
 
 Highlights:
 
@@ -278,7 +281,7 @@ Outputs (`.elf`, `.uf2`, etc.) are in the build directory; flash the `.uf2` to t
 |---------|-------------|
 | [Wii_Mode_Guide.md](Firmware/RP2040/docs/Wii_Mode_Guide.md) | Wii mode (build-option only): No Extension / Nunchuk / Classic, USB host, sync and auto-connect, button mapping. |
 | [PICO2W_WII_USB_SETUP.md](Firmware/RP2040/docs/PICO2W_WII_USB_SETUP.md) | Pico 2 W / Pico W: USB host wiring (PIO USB), pins, build, troubleshooting for Wii mode. |
-| [IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md) | Firmware improvements: PS3 fixes, latency, XInput/360, Pico W Bluetooth, **Pico W PIO USB wired unplug detection**. |
+| [IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md) | Firmware improvements: PS3 fixes, latency, XInput/360, Pico W Bluetooth, **Switch 2 Pro + Joy-Con 2 BLE**, **Pico W PIO USB wired unplug detection**. |
 
 ### ESP32
 Please see the Hardware directory for a diagram showing how to hookup the ESP32 to your RP2040.
@@ -298,6 +301,9 @@ When you build with ESP-IDF, Cmake will run a python script that copies the nece
 - **[faithvoid](https://github.com/faithvoid)** — Xbox 360 controller vibration/rumble fix (host-side rumble handling, including wireless RUMBLE_ENABLE sequence).
 - **[PicoGamepadConverter](https://github.com/wiredopposite/PicoGamepadConverter)** — Wii (Wiimote) output mode: approach of USB gamepad on PIO USB with Bluetooth reserved for the Wiimote link, and button/stick mappings for No Extension, Nunchuk, and Classic Controller report modes.
 - **[retro-pico-switch](https://github.com/DavidPagels/retro-pico-switch)** — Reference for Nintendo Switch Pro Controller protocol and report layout (N64/GameCube → Raspberry Pi Pico → Switch via USB or Bluetooth). Used to align OGX-Mini’s Switch mode with correct Pro Controller button byte layout and emulation behavior.
+- **[Nadeflore/switch2-controllers](https://github.com/Nadeflore/switch2-controllers)** — Foundational **Switch 2** BLE discovery, pairing, and GATT protocol work used to implement wireless **Switch 2 Pro** support on Pico W / Pico 2 W.
+- **[TommyWabg/switch2-controllers-windows10-gyro](https://github.com/TommyWabg/switch2-controllers-windows10-gyro)** — Extended Switch 2 fork: **63-byte composed input report**, button bitfield, init/feature commands, and **Pro Controller** rumble packet format (fork of Nadeflore’s project).
+- **[BlueRetro #1249](https://github.com/darthcloud/BlueRetro/issues/1249)** (darthcloud) — Community reverse engineering of Switch 2 **63-byte BLE reports** and GATT notify handles.
 
 ## Licenses and third-party code
 

@@ -31,7 +31,6 @@ void set_led(bool state) {
         return;
     }
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, state ? 1 : 0);
-    OGXM_LOG(state ? "board_api_bt: set_led ON\n" : "board_api_bt: set_led OFF\n");
 }
 
 } // namespace board_api_bt

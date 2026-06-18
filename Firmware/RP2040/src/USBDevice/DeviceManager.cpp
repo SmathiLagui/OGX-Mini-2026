@@ -8,6 +8,7 @@
 #include "USBDevice/DeviceDriver/Wii/Wii.h"
 #include "USBDevice/DeviceDriver/DInput/DInput.h"
 #include "USBDevice/DeviceDriver/PS3/PS3.h"
+#include "USBDevice/DeviceDriver/PS4/PS4.h"
 #include "USBDevice/DeviceDriver/XboxOG/XboxOG_GP.h"
 #include "USBDevice/DeviceDriver/XboxOG/XboxOG_SB.h"
 #include "USBDevice/DeviceDriver/XboxOG/XboxOG_XR.h"
@@ -40,6 +41,11 @@ void DeviceManager::initialize_driver(  DeviceDriverType driver_type,
             printf("PS3 Loaded\n"); 
             has_analog = true;
             device_driver_ = std::make_unique<PS3Device>();
+            break;
+        case DeviceDriverType::PS4:
+            printf("PS4 Loaded\n");
+            has_analog = true;
+            device_driver_ = std::make_unique<PS4Device>();
             break;
         case DeviceDriverType::PSCLASSIC:
             printf("PSCLASSIC Loaded\n"); 

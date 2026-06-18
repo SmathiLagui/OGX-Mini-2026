@@ -1,10 +1,18 @@
 # Changelog / Version history
 
-Features and fixes added in this fork. For the latest firmware improvements (PS3, XInput, latency, **Pico W Bluetooth / DS4 Classic BT**, etc.), see [Firmware/RP2040/docs/IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md).
+Features and fixes added in this fork. For the latest firmware improvements (PS3, XInput, latency, **Pico W Bluetooth / DS4 Classic BT**, **Switch 2 Pro + Joy-Con 2 BLE**, **Switch 1 Joy-Con L+R merge**, **Joy-Con dual-half latency fixes**, etc.), see [Firmware/RP2040/docs/IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md).
 
 ---
 
-### Version 1.0.0.9a *(planned / next release)*
+### Version 1.0.0.10a
+
+- **Nintendo Switch 2 — wireless on Pico W / Pico 2 W** — New **Bluepad32 BLE GATT client** (`uni_hid_parser_switch2`) connects **Switch 2 Pro** (PID **0x2069**), **Joy-Con 2 Left** (**0x2067**), and **Joy-Con 2 Right** (**0x2066**) over **Bluetooth LE** (non-standard pairing; not Windows Bluetooth settings). **Joy-Con 2 L+R** merge into **one player** (pair **Left** first, then **Right** while left stays connected). Parses **63-byte** input notifications (composed button dword at offset **4**), maps buttons, sticks, motion, rumble, and **Home → PS / Guide (SYS)** with a short **Home latch** so single-frame BLE pulses are not lost before the USB output driver runs. **Rumble keepalive** on the vibration characteristic keeps the link up. **NSO GameCube** (PID **0x2073**) is registered but not yet confirmed. Protocol references: [Nadeflore/switch2-controllers](https://github.com/Nadeflore/switch2-controllers), [TommyWabg/switch2-controllers-windows10-gyro](https://github.com/TommyWabg/switch2-controllers-windows10-gyro), and community notes in [BlueRetro #1249](https://github.com/darthcloud/BlueRetro/issues/1249). See [IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md) (*Nintendo Switch 2 — Bluetooth*).
+- **Switch 1 Joy-Con (Classic Bluetooth) — L+R pair merge** — Original **Joy-Con (L/R)** (PIDs **0x2006** / **0x2007**) use the same **Left first, then Right** flow as Joy-Con 2. Merged input maps to one gamepad slot; solo Joy-Con keeps **BR/EDR inquiry** for the partner. Requires **`CONFIG_BLUEPAD32_MAX_DEVICES=2`** on single-player builds. See [IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md) (*Nintendo Switch 2 — Bluetooth*, item 8).
+- **Joy-Con pair latency (Switch 1 + Switch 2)** — Fixed lag and missed edges when **both** merged halves have buttons pressed at once. **Half-cache merge** (always merge from latest L and R state, emit once through primary), **2-slot** Bluetooth pad staging on Core1→Core0, **Switch 1:** IMU disabled when paired; **Switch 2:** deferred merge emit, reduced/alternating keepalive, Joy-Con–only stick parse, no hot-path raw UART logging. See [IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md) (*Joy-Con pair merge — latency when both halves are active*).
+
+---
+
+### Version 1.0.0.9a
 
 - **Nintendo Switch 2 Pro (USB PID 0x2069), wired** — **Switch2ProHost** now maps **face buttons, d‑pad, LB/RB, L3, R3, Start, Guide/SYS, Minus (Back), ZL/ZR as LT/RT** from the stable **10‑byte** input payload after report **0x09** (extended / IMU bytes unused to avoid flicker). **GL**, **GR**, and **Chat** are documented in code but intentionally unmapped. **Wired USB to the adapter only** (see [Wired_Controllers.md](Firmware/RP2040/docs/Wired_Controllers.md)). Debug: optional **`OGXM_SWITCH2_HID_RAW_LOG`** logs when the **three digital button bytes** change (UART).
 - **Bluetooth (Pico W / Pico 2 W)** — **~1 second connection rumble** when a wireless controller reaches **device ready**, so you get haptic feedback that pairing completed. **DualShock 4** uses a **delayed start** before rumble (same spirit as the existing PS4 FF grace period). See [IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md) (*Next version* and *§6. Connection rumble*).

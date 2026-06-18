@@ -92,7 +92,14 @@ void PS5Host::process_report(Gamepad& gamepad, uint8_t address, uint8_t instance
 
     std::tie(gp_in.joystick_lx, gp_in.joystick_ly) = gamepad.scale_joystick_l(in_report->joystick_lx, in_report->joystick_ly);
     std::tie(gp_in.joystick_rx, gp_in.joystick_ry) = gamepad.scale_joystick_r(in_report->joystick_rx, in_report->joystick_ry);
-    
+
+    /* DualSense USB: map motion for PS3 gadget path (same int16 sensor layout as DS5 HID). */
+    gp_in.motion_source = Gamepad::PadIn::MOTION_SRC_DS5_USB;
+    for (int i = 0; i < 3; i++) {
+        gp_in.accel[i] = static_cast<int32_t>(static_cast<int16_t>(in_report->accel[i]));
+        gp_in.gyro[i] = static_cast<int32_t>(static_cast<int16_t>(in_report->gyro[i]));
+    }
+
     gamepad.set_pad_in(gp_in);
 
     tuh_hid_receive_report(address, instance);

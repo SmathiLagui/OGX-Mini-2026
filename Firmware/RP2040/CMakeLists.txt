@@ -67,6 +67,7 @@ set(SOURCES_BOARD
     ${SRC}/USBDevice/DeviceDriver/DeviceDriver.cpp
     ${SRC}/USBDevice/DeviceDriver/PSClassic/PSClassic.cpp
     ${SRC}/USBDevice/DeviceDriver/PS3/PS3.cpp
+    ${SRC}/USBDevice/DeviceDriver/PS4/PS4.cpp
     ${SRC}/USBDevice/DeviceDriver/Switch/Switch.cpp
     ${SRC}/USBDevice/DeviceDriver/WiiU/WiiU.cpp
     ${SRC}/USBDevice/DeviceDriver/Wii/Wii.cpp
@@ -553,6 +554,10 @@ if(EN_BLUETOOTH)
     add_subdirectory(${BLUEPAD32_ROOT}/src/components/bluepad32 libbluepad32)
     # Propagate to bluepad32 sources (e.g. DS4 parser): CYW43-specific link + setup path
     target_compile_definitions(bluepad32 PRIVATE OGXM_BLUEPAD32_PICO_W=1)
+    target_include_directories(bluepad32 PRIVATE ${SRC})
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_definitions(bluepad32 PRIVATE CONFIG_OGXM_DEBUG=1)
+    endif()
 endif()
 
 add_subdirectory(${LIBFIXMATH_PATH} libfixmath)

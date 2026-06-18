@@ -4,6 +4,84 @@
 #include "pico/time.h"
 #include "USBDevice/DeviceDriver/PS3/PS3.h"
 
+namespace {
+
+/*
+ * DS3 Sixaxis wire format (Linux drivers/hid/hid-sony.c): bytes 41–48 are MSB-first 16-bit values;
+ * accel layout X @ 41–42, Z @ 43–44, Y @ 45–46; kernel uses 10-bit–style center 511.
+ * PadIn accel/gyro follow Bluepad DS4 units (accel, gyro[2] for yaw rate).
+ */
+void apply_pad_imu_to_ps3_sixaxis(PS3::InReport& rep, const Gamepad::PadIn& gp_in)
+{
+    constexpr int32_t kDs4UnitsPerG = 8192;
+    constexpr int32_t kDs3CountsPerG = 113;
+    constexpr int32_t kGyroPerDps = 1024;
+
+    int32_t ax = gp_in.accel[0];
+    int32_t ay = gp_in.accel[1];
+    int32_t az = gp_in.accel[2];
+
+    auto iabs = [](int32_t v) -> int64_t {
+        const int64_t w = static_cast<int64_t>(v);
+        return w >= 0 ? w : -w;
+    };
+    const int64_t l1 = iabs(ax) + iabs(ay) + iabs(az);
+    constexpr int64_t kNearZeroL1 = 512;
+    if (l1 < kNearZeroL1) {
+        ax = 0;
+        ay = 0;
+        az = kDs4UnitsPerG;
+    }
+
+    auto ds4_to_ds3_delta = [](int32_t ds4_units) -> int32_t {
+        return static_cast<int32_t>((static_cast<int64_t>(ds4_units) * kDs3CountsPerG) / kDs4UnitsPerG);
+    };
+
+    auto encode_accel = [&ds4_to_ds3_delta](int32_t ds4_units, bool kernel_inverts) -> uint16_t {
+        int32_t d = ds4_to_ds3_delta(ds4_units);
+        if (d > 511) {
+            d = 511;
+        }
+        if (d < -512) {
+            d = -512;
+        }
+        int32_t raw = kernel_inverts ? (511 - d) : (511 + d);
+        if (raw < 0) {
+            raw = 0;
+        }
+        if (raw > 1023) {
+            raw = 1023;
+        }
+        return static_cast<uint16_t>(raw);
+    };
+
+    const uint16_t raw_x = encode_accel(ax, false);
+    const uint16_t raw_z_wire = encode_accel(az, true);
+    const uint16_t raw_y_wire = encode_accel(ay, true);
+
+    rep.acceler_x = __builtin_bswap16(raw_x);
+    rep.acceler_y = __builtin_bswap16(raw_z_wire);
+    rep.acceler_z = __builtin_bswap16(raw_y_wire);
+
+    int32_t gz = static_cast<int32_t>((static_cast<int64_t>(gp_in.gyro[2]) * 511) / (kGyroPerDps * 64));
+    if (gz > 511) {
+        gz = 511;
+    }
+    if (gz < -512) {
+        gz = -512;
+    }
+    int32_t raw_g_i = 511 + gz;
+    if (raw_g_i < 0) {
+        raw_g_i = 0;
+    }
+    if (raw_g_i > 1023) {
+        raw_g_i = 1023;
+    }
+    rep.gyro_z = __builtin_bswap16(static_cast<uint16_t>(raw_g_i));
+}
+
+} // namespace
+
 void PS3Device::initialize() 
 {
 	class_driver_ = 
@@ -54,9 +132,7 @@ void PS3Device::process(const uint8_t idx, Gamepad& gamepad)
             tud_remote_wakeup();
     }
 
-    // Build report only when we're about to send so the console gets the freshest state
-    // (helps Home button and analog timing with DS4/DS5 over Bluetooth).
-    if (tud_hid_ready())
+    /* Rebuild report_in_ every frame so GET_REPORT and IMU stay current; send on HID IN when ready. */
     {
         Gamepad::PadIn gp_in = gamepad.get_pad_in();
         report_in_ = PS3::InReport();
@@ -166,6 +242,15 @@ void PS3Device::process(const uint8_t idx, Gamepad& gamepad)
             report_in_.l1_axis = (gp_in.buttons & Gamepad::BUTTON_LB) ? 0xFF : 0;
         }
 
+        /* Sixaxis only when IMU is parsed for DS4/DS5 BT or Switch Pro (not other pads or USB PS5). */
+        if (gp_in.motion_source == Gamepad::PadIn::MOTION_SRC_DS4 ||
+            gp_in.motion_source == Gamepad::PadIn::MOTION_SRC_DS5 ||
+            gp_in.motion_source == Gamepad::PadIn::MOTION_SRC_SWITCH_PRO) {
+            apply_pad_imu_to_ps3_sixaxis(report_in_, gp_in);
+        }
+    }
+
+    if (tud_hid_ready()) {
         tud_hid_report(0, reinterpret_cast<uint8_t*>(&report_in_), sizeof(PS3::InReport));
     }
 

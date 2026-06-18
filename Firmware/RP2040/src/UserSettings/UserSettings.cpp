@@ -16,6 +16,7 @@ static constexpr uint32_t BUTTON_COMBO(const uint16_t& buttons, const uint8_t& d
 
 namespace ButtonCombo {
     static constexpr uint32_t PS3       = BUTTON_COMBO(Gamepad::BUTTON_START, Gamepad::DPAD_LEFT);
+    static constexpr uint32_t PS4       = BUTTON_COMBO(Gamepad::BUTTON_START | Gamepad::BUTTON_LB, Gamepad::DPAD_LEFT);
     static constexpr uint32_t DINPUT    = BUTTON_COMBO(Gamepad::BUTTON_START | Gamepad::BUTTON_RB, Gamepad::DPAD_LEFT);
     static constexpr uint32_t XINPUT    = BUTTON_COMBO(Gamepad::BUTTON_START, Gamepad::DPAD_UP);
     static constexpr uint32_t SWITCH    = BUTTON_COMBO(Gamepad::BUTTON_START, Gamepad::DPAD_DOWN);
@@ -38,6 +39,7 @@ static constexpr DeviceDriverType VALID_DRIVER_TYPES[] = {
     DeviceDriverType::XBOXOG_SB, 
     DeviceDriverType::XINPUT,
     DeviceDriverType::PS3,
+    DeviceDriverType::PS4,
     DeviceDriverType::PSCLASSIC, 
     DeviceDriverType::WIIU,
     DeviceDriverType::WII,
@@ -62,6 +64,7 @@ static constexpr DeviceDriverType VALID_DRIVER_TYPES[] = {
     DeviceDriverType::WII,
     DeviceDriverType::WEBAPP,
     DeviceDriverType::PS3,
+    DeviceDriverType::PS4,
     DeviceDriverType::PSCLASSIC,
     DeviceDriverType::PS1PS2,
     DeviceDriverType::GAMECUBE,
@@ -81,7 +84,7 @@ struct ComboMap {
 };
 
 // GAMECUBE and N64 are build-only (fixed driver), not in combo map; use -DOGXM_FIXED_DRIVER=GAMECUBE or N64.
-static constexpr std::array<ComboMap, 12> BUTTON_COMBO_MAP = {{
+static constexpr std::array<ComboMap, 13> BUTTON_COMBO_MAP = {{
     { ButtonCombo::XBOXOG,    DeviceDriverType::XBOXOG    },
     { ButtonCombo::XBOXOG_SB, DeviceDriverType::XBOXOG_SB },
     { ButtonCombo::XBOXOG_XR, DeviceDriverType::XBOXOG_XR },
@@ -91,6 +94,7 @@ static constexpr std::array<ComboMap, 12> BUTTON_COMBO_MAP = {{
     { ButtonCombo::WIIU,      DeviceDriverType::WIIU      },
     { ButtonCombo::XINPUT,    DeviceDriverType::XINPUT    },
     { ButtonCombo::PS3,       DeviceDriverType::PS3       },
+    { ButtonCombo::PS4,       DeviceDriverType::PS4       },
     { ButtonCombo::PSCLASSIC, DeviceDriverType::PSCLASSIC },
     { ButtonCombo::PS1PS2,    DeviceDriverType::PS1PS2    },
     { ButtonCombo::DREAMCAST, DeviceDriverType::DREAMCAST },
