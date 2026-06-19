@@ -515,7 +515,12 @@ static uni_error_t device_ready_cb(uni_hid_device_t* device) {
     s_bt_any_connected_cached.store(true, std::memory_order_release);
 #endif
 #if defined(CONFIG_TARGET_PICO_W)
-    if (gap_get_connection_type(device->conn.handle) == GAP_CONNECTION_ACL) {
+    if (device->controller_type == CONTROLLER_TYPE_XBoxOneController && device->hids_cid != 0) {
+        /* CYW43439: BLE scan + BR inquiry during an active Xbox LE link causes supervision timeout. */
+        uni_bt_le_scan_stop();
+        uni_bt_bredr_scan_stop();
+        gap_advertisements_enable(0);
+    } else if (gap_get_connection_type(device->conn.handle) == GAP_CONNECTION_ACL) {
         gap_advertisements_enable(0);
         if (uni_hid_parser_switch_solo_needs_partner(device)) {
             /* Solo Joy-Con (L or R): keep inquiry + page scan for the partner; pause BLE scan. */
