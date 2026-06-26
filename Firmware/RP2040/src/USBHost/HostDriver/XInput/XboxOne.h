@@ -1,6 +1,7 @@
 #ifndef _XBOX_ONE_HOST_H_
 #define _XBOX_ONE_HOST_H_
 
+#include <array>
 #include <cstdint>
 
 #include "Descriptors/XboxOne.h"
@@ -18,8 +19,11 @@ public:
 
 private:
     XboxOne::InReport prev_in_report_;
-    uint8_t guide_pressed_{0};       // Guide (Home) from GIP 0x07; not in 0x20 report
-    uint32_t last_guide_07_ms_{0};   // when we last saw 0x07; clear Guide if no 0x07 for a while
+    std::array<uint8_t, 32> prev_arcade_report_{};
+    uint16_t prev_arcade_len_{0};
+    bool gip_arcade_stick_{false};
+    uint8_t guide_pressed_{0};
+    uint32_t last_guide_07_ms_{0};
 };
 
 #endif // _XBOX_ONE_HOST_H_

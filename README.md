@@ -79,6 +79,7 @@ For the OUYA controller there is no Start+Select, the disconnection combo has be
 See [**Wired Controllers**](Firmware/RP2040/docs/Wired_Controllers.md) for a full list by driver type. The following work when the adapter is outputting to any supported platform (Xbox, Switch, XInput, PS3, DInput, **PS1/PS2**, **Dreamcast**, **GameCube**, **N64**, etc.):
 - Original Xbox Duke and S
 - Xbox 360, One, Series, and Elite
+- **Razer Atrox Arcade Stick** (Xbox One `1532:0a00`, Xbox 360 `24c6:5000`; wired USB host)
 - Dualshock 3 (PS3)
 - Dualshock 4 (PS4)
 - Dualsense (PS5)

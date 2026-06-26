@@ -414,6 +414,11 @@ public:
 				{
 					tuh_xinput::service_wireless_ports(device_slot.address);
 				}
+				if (iface.driver_class == DriverClass::XINPUT &&
+				    iface.host_driver_type == HostDriverType::XBOXONE)
+				{
+					tuh_xinput::service_gip(device_slot.address, iface.usb_instance);
+				}
 				/* PS4-only (no GIP): 200 ms OUT refresh is OK. Composite pads choke if we OUT at 200 ms —
 				 * use rare keepalive + init + console-driven updates only. */
 				const bool ps4_hid_periodic =

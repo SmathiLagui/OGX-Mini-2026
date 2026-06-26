@@ -13,8 +13,12 @@ This document lists controllers supported when connected to the OGX-Mini adapter
 - **Microsoft:** Xbox 360 (wired and **360 PC wireless receiver**), Xbox One / Series **wired USB**, Xbox Elite
 - **Not supported (planned):** Xbox One / Series **wireless USB dongle** (`045e:02e6`, `045e:02fe`) — see [IMPROVEMENTS.md — Future planned](IMPROVEMENTS.md#future-planned)
 - **Third‑party:** Controllers that identify as XInput over USB (e.g. many 8BitDo, PowerA, PDP, Afterglow when in XInput mode)
+- **Razer Atrox Arcade Stick:** **Xbox One** (`1532:0a00`, vendor GIP); **Xbox 360** (`24c6:5000`, standard XInput, digital LT/RT)
+- **Other Xbox One GIP arcade sticks:** Mad Catz FightStick TE 2 (`0738:4a01`), PDP Xbox One Arcade Stick (`0e6f:015c`), Hori RAP Hayabusa / V Kai / Fighting Commander ONE — see `XBOX_ONE_GIP_IDS` in `XboxArcadeStick.h`
 
-*Matched by USB class; no fixed VID/PID list. UsbdSecPatch is not required on Xbox 360.*
+*Matched by USB class for standard XInput pads; arcade sticks above use explicit VID/PID + GIP init. UsbdSecPatch is not required on Xbox 360.*
+
+**Razer Atrox arcade stick (wired USB host):** **Xbox One** model (`1532:0a00`) uses GIP on interface 0. Init follows **XBOFS.win** (`05 20 00 01 00`, wait for OUT, then **30-byte** IN read loop); input uses XBOFS byte layout (face/LT/RT on byte 22). Standard Xbox One pads use 64-byte Linux xpad GIP. **Xbox 360** model (`24c6:5000`) uses standard XInput with digital trigger bytes.
 
 **Xbox 360 wireless PC receiver (`045e:0719`), wired to adapter USB host:** Plug the **receiver** into the adapter’s host port; sync a **wireless 360 pad** to any quadrant. On **PIO USB host** boards (Waveshare RP2350-USB-A, Pico, Feather, etc.), v1.0.0.11a polls **all four RF ports** even when `MAX_GAMEPADS=1` and primes idle ports for sync. See [IMPROVEMENTS.md — PIO USB host wired fixes](IMPROVEMENTS.md#pio-usb-host--wired-connection-fixes-waveshare-rp2350-usb-a).
 
