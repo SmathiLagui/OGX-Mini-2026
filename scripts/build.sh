@@ -3,6 +3,8 @@
 # Run from anywhere. Creates scripts/build/ and runs CMake/Ninja there; source is Firmware/RP2040. Optional log in scripts/ on failure.
 
 set -e
+# force English git output so cmake patch checks are locale-independent
+export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FIRMWARE_RP2040="$REPO_ROOT/Firmware/RP2040"

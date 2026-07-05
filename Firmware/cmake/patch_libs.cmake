@@ -34,41 +34,6 @@ function(apply_lib_patches EXTERNAL_DIR)
         endif ()
     endif ()
 
-    set(BLUEPAD32_PATCH "${EXTERNAL_DIR}/patches/bluepad32_uni.diff")
-    set(BLUEPAD32_PATH "${EXTERNAL_DIR}/bluepad32")
-
-    message(STATUS "Applying Bluepad32 patch: ${BLUEPAD32_PATCH}")
-
-    execute_process(
-        COMMAND git apply --check --ignore-whitespace ${BLUEPAD32_PATCH}
-        WORKING_DIRECTORY ${BLUEPAD32_PATH}
-        RESULT_VARIABLE BLUEPAD32_CHECK_RESULT
-    )
-    if (BLUEPAD32_CHECK_RESULT EQUAL 0)
-        execute_process(
-            COMMAND git apply --ignore-whitespace ${BLUEPAD32_PATCH}
-            WORKING_DIRECTORY ${BLUEPAD32_PATH}
-            RESULT_VARIABLE BLUEPAD32_PATCH_RESULT
-            ERROR_VARIABLE BLUEPAD32_PATCH_ERROR
-        )
-        if (BLUEPAD32_PATCH_RESULT EQUAL 0)
-            message(STATUS "Bluepad32 patch applied successfully.")
-        else ()
-            message(FATAL_ERROR "Failed to apply Bluepad32 patch: ${BLUEPAD32_PATCH_ERROR}")
-        endif ()
-    else ()
-        execute_process(
-            COMMAND git apply --check --reverse --ignore-whitespace ${BLUEPAD32_PATCH}
-            WORKING_DIRECTORY ${BLUEPAD32_PATH}
-            RESULT_VARIABLE BLUEPAD32_REV_RESULT
-        )
-        if (BLUEPAD32_REV_RESULT EQUAL 0)
-            message(STATUS "Bluepad32 patch already applied.")
-        else ()
-            message(FATAL_ERROR "Failed to apply Bluepad32 patch: patch does not apply forward or in reverse.")
-        endif ()
-    endif ()
-
     set(PIOASM_PATCH "${EXTERNAL_DIR}/patches/pico_sdk_pioasm.diff")
     set(PIOASM_PATH "${EXTERNAL_DIR}/pico-sdk")
 
