@@ -41,4 +41,26 @@ function(apply_lib_patches EXTERNAL_DIR)
         message(FATAL_ERROR "Failed to apply Bluepad32 patch: ${BLUEPAD32_PATCH_ERROR}")
     endif ()
 
+    # Pico SDK 2.1.x still lists BTstack's old hids_client.c; Bluepad32's BTstack
+    # v1.8 renamed it to hids_host.c. Patch the SDK cmake when using that tree.
+    set(PICO_SDK_HIDS_PATCH "${EXTERNAL_DIR}/patches/pico_sdk_hids_host.diff")
+    set(PICO_SDK_PATH_LOCAL "${EXTERNAL_DIR}/pico-sdk")
+    if (EXISTS "${PICO_SDK_PATH_LOCAL}/src/rp2_common/pico_btstack/CMakeLists.txt")
+        message(STATUS "Applying Pico SDK HIDS host patch: ${PICO_SDK_HIDS_PATCH}")
+        execute_process(
+            COMMAND git apply --ignore-whitespace ${PICO_SDK_HIDS_PATCH}
+            WORKING_DIRECTORY ${PICO_SDK_PATH_LOCAL}
+            RESULT_VARIABLE PICO_SDK_HIDS_PATCH_RESULT
+            OUTPUT_VARIABLE PICO_SDK_HIDS_PATCH_OUTPUT
+            ERROR_VARIABLE PICO_SDK_HIDS_PATCH_ERROR
+        )
+        if (PICO_SDK_HIDS_PATCH_RESULT EQUAL 0)
+            message(STATUS "Pico SDK HIDS host patch applied successfully.")
+        elseif (PICO_SDK_HIDS_PATCH_ERROR MATCHES "patch does not apply")
+            message(STATUS "Pico SDK HIDS host patch already applied.")
+        else ()
+            message(FATAL_ERROR "Failed to apply Pico SDK HIDS host patch: ${PICO_SDK_HIDS_PATCH_ERROR}")
+        endif ()
+    endif ()
+
 endfunction()
