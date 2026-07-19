@@ -4,6 +4,12 @@ Features and fixes added in this fork. For the latest firmware improvements (PS3
 
 ---
 
+### Version 1.0.0.13a
+
+- **Steam Controller 2026 (Triton) BLE — pair/input restored** — After DIS, Triton was stuck in HOGP (`hids_host_connect`) and never reached input. Match SDL/Android: skip standard HID-over-GATT and use Valve’s proprietary GATT service (`100F6C32-…`), enable notifications on input `0x45`/`0x47`, and resolve the connection handle from GATT packets (not the unused `channel` arg). Also quiet BR/LE scan during BLE connect and raise HID descriptor / HIDS report limits. **Files:** `uni_hid_parser_steam_triton.c`, `uni_bt_le.c`, `Bluepad32.cpp`, `uni_hid_device.h`, `btstack_hids_num_reports.diff`, `patch_libs.cmake`.
+
+---
+
 ### Version 1.0.0.12a
 
 - **DualShock 3 — USB → Bluetooth auto-pair restored** — Wiring a **DS3** into the adapter USB host again programs the pad with the Pico’s **BD_ADDR** (**HID feature `0xF5`**, same as sixaxispairer) so you can unplug and press **PS**. The PIO USB sync init path had marked init **DONE** before the old async **GET 0xF2** pair chain ran, so **`0xF5` never sent**. Fix: send **`0xF5` synchronously** right after **0xF4** + LED OUT (still deferred if the BT address is not ready yet). **Files:** `PS3.cpp` / `PS3.h` (USB host). See [IMPROVEMENTS.md](Firmware/RP2040/docs/IMPROVEMENTS.md) (*DualShock 3 — automatic USB programming for Bluetooth pairing*).

@@ -20,6 +20,23 @@ function(apply_lib_patches EXTERNAL_DIR)
         message(FATAL_ERROR "Failed to apply BTStack patch: ${BTSTACK_PATCH_ERROR}")
     endif ()
 
+    set(BTSTACK_HIDS_REPORTS_PATCH "${EXTERNAL_DIR}/patches/btstack_hids_num_reports.diff")
+    message(STATUS "Applying BTStack HIDS reports patch: ${BTSTACK_HIDS_REPORTS_PATCH}")
+    execute_process(
+        COMMAND git apply --ignore-whitespace ${BTSTACK_HIDS_REPORTS_PATCH}
+        WORKING_DIRECTORY ${BTSTACK_PATH}
+        RESULT_VARIABLE BTSTACK_HIDS_REPORTS_RESULT
+        OUTPUT_VARIABLE BTSTACK_HIDS_REPORTS_OUTPUT
+        ERROR_VARIABLE BTSTACK_HIDS_REPORTS_ERROR
+    )
+    if (BTSTACK_HIDS_REPORTS_RESULT EQUAL 0)
+        message(STATUS "BTStack HIDS reports patch applied successfully.")
+    elseif (BTSTACK_HIDS_REPORTS_ERROR MATCHES "patch does not apply")
+        message(STATUS "BTStack HIDS reports patch already applied.")
+    else ()
+        message(FATAL_ERROR "Failed to apply BTStack HIDS reports patch: ${BTSTACK_HIDS_REPORTS_ERROR}")
+    endif ()
+
     set(BLUEPAD32_PATCH "${EXTERNAL_DIR}/patches/bluepad32_uni.diff")
     set(BLUEPAD32_PATH "${EXTERNAL_DIR}/bluepad32")
 

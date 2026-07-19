@@ -434,6 +434,19 @@ static void ogxm_resume_ble_ads_if_no_acl_pad(int disconnected_idx) {
 #endif
 }
 
+/** CYW43: any active BLE gamepad link (HOGP or Triton Valve GATT) needs scans off. */
+static bool device_is_ble_hogp(const uni_hid_device_t* d) {
+    if (d == nullptr)
+        return false;
+    if (d->hids_cid != 0 && d->hids_cid != 0xffff)
+        return true;
+    /* Triton skips HIDS — still needs quiet radio while LE link is up. */
+    if (uni_hid_parser_steam_triton_is_device(d) && d->conn.handle != UNI_BT_CONN_HANDLE_INVALID &&
+        gap_get_connection_type(d->conn.handle) == GAP_CONNECTION_LE)
+        return true;
+    return false;
+}
+
 /** CYW43: periodic BR/EDR inquiry while a Classic ACL link is up can drop DS4/PS3 in ~1–2 s. */
 static void maybe_restart_bredr_inquiry_after_disconnect(int disconnected_idx) {
 #if defined(CONFIG_TARGET_PICO_W)
@@ -449,8 +462,8 @@ static void maybe_restart_bredr_inquiry_after_disconnect(int disconnected_idx) {
             continue;
         if (gap_get_connection_type(d->conn.handle) == GAP_CONNECTION_ACL)
             return;
-        /* Xbox Series BLE also stops BR inquiry (same radio contention). */
-        if (d->controller_type == CONTROLLER_TYPE_XBoxOneController && d->hids_cid != 0)
+        /* Any BLE HOGP pad: keep BR inquiry off (same radio contention as Xbox). */
+        if (device_is_ble_hogp(d))
             return;
     }
     uni_bt_bredr_scan_start();
@@ -475,7 +488,7 @@ static void maybe_restart_ble_scan_after_disconnect(int disconnected_idx) {
         uni_hid_device_t* d = uni_hid_device_get_instance_for_idx(static_cast<int>(i));
         if (!d || uni_bt_conn_get_state(&d->conn) != UNI_BT_CONN_STATE_DEVICE_READY)
             continue;
-        if (d->controller_type == CONTROLLER_TYPE_XBoxOneController && d->hids_cid != 0)
+        if (device_is_ble_hogp(d))
             return;
         /* Solo Switch Joy-Con keeps LE scan off while waiting for partner over Classic BT. */
         if (uni_hid_parser_switch_solo_needs_partner(d))
@@ -502,11 +515,29 @@ static void bt_disconnect_reboot_cb(btstack_timer_source_t* ts) {
 static void restore_bt_pairing_mode(int disconnected_idx);
 
 #if defined(CONFIG_EN_BLUETOOTH) && defined(CONFIG_TARGET_PICO_W)
+/** True while a BLE pad is connected but not yet DEVICE_READY (pairing / DIS / HIDS). */
+static bool any_ble_connect_in_progress() {
+    for (uint8_t i = 0; i < CONFIG_BLUEPAD32_MAX_DEVICES; ++i) {
+        uni_hid_device_t* d = uni_hid_device_get_instance_for_idx(static_cast<int>(i));
+        if (!d || d->conn.handle == UNI_BT_CONN_HANDLE_INVALID)
+            continue;
+        if (uni_bt_conn_get_state(&d->conn) == UNI_BT_CONN_STATE_DEVICE_READY)
+            continue;
+        if (gap_get_connection_type(d->conn.handle) == GAP_CONNECTION_LE)
+            return true;
+    }
+    return false;
+}
+
 static bool is_pairing_idle() {
 #if defined(CONFIG_EN_USB_HOST)
     if (board_api::usb::host_any_pad_mounted())
         return false;
 #endif
+    /* Mid HOGP discovery still looks "disconnected" to bt_devices_[], but scans
+     * must stay off or Triton's HIDS discovery never finishes. */
+    if (any_ble_connect_in_progress())
+        return false;
     return !any_connected();
 }
 
@@ -663,8 +694,8 @@ static uni_error_t device_ready_cb(uni_hid_device_t* device) {
     s_bt_any_connected_cached.store(true, std::memory_order_release);
 #endif
 #if defined(CONFIG_TARGET_PICO_W)
-    if (device->controller_type == CONTROLLER_TYPE_XBoxOneController && device->hids_cid != 0) {
-        /* CYW43439: BLE scan + BR inquiry during an active Xbox LE link causes supervision timeout. */
+    if (device_is_ble_hogp(device)) {
+        /* CYW43439: BLE scan + BR inquiry during an active LE HOGP link stalls GATT / drops link. */
         uni_bt_le_scan_stop();
         uni_bt_bredr_scan_stop();
         gap_advertisements_enable(0);
